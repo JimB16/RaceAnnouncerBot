@@ -11,9 +11,13 @@ public class RaceSplit {
 
 	private String splitName;
 	private List<SplitTime> splitTimes = new ArrayList<SplitTime>();
+	private Boolean announced;
+	private Integer orderNr;
 	
-	public RaceSplit(String splitName) {
+	public RaceSplit(String splitName, Integer orderNr) {
 		this.splitName = splitName;
+		this.orderNr = orderNr;
+		this.clearAnnounced();
 	}
 	
 	public void addTime(Entrant runner, String time) {
@@ -24,7 +28,7 @@ public class RaceSplit {
 				return;
 			}
 		}
-		splitTimes.add(new SplitTime(runner, time));
+		splitTimes.add(new SplitTime(runner, time, this.orderNr, this.getSplitName()));
 		Collections.sort(splitTimes, new SplitTimeComparator());
 		System.out.println("Time recorded for split [" + this.splitName + "] for runner [" + runner.getDisplayName() + "]. The time was " + time);
 	}
@@ -45,6 +49,10 @@ public class RaceSplit {
 		}
 		return null;
 	}
+
+	public void setAnnounced() { announced = true; }
+	public void clearAnnounced() { announced = false; }
+	public Boolean hasBeenAnnounced() { return announced; }
 	
 	@Override
 	public int hashCode() {
@@ -74,10 +82,14 @@ public class RaceSplit {
 	public class SplitTime {
 		private Entrant runner;
 		private long time;
+		private Integer orderNr;
+		private String splitName;
 			
-		public SplitTime(Entrant runner, String time) {
+		public SplitTime(Entrant runner, String time, Integer orderNr, String splitName) {
 			this.runner = runner;
 			this.time = parseTime(time);
+			this.orderNr = orderNr;
+			this.splitName = splitName;
 		}
 		
 		public void updateTime(String time) {
@@ -116,7 +128,11 @@ public class RaceSplit {
 		}
 
 		public long getTime() { return this.time; }
-		
+
+		public Integer getOrderNr() { return this.orderNr; }
+
+		public String getSplitName() { return this.splitName; }
+
 		@Override
 		public String toString() {
 			return this.getEntrantName() + " : " + this.getDisplayTime();
@@ -124,10 +140,13 @@ public class RaceSplit {
 		
 	}
 
-	public class SplitTimeComparator implements Comparator<SplitTime> {
+	public static class SplitTimeComparator implements Comparator<SplitTime> {
 		@Override
 		public int compare(SplitTime t1, SplitTime t2) {
-			return (int) Math.signum(t1.getTime() - t2.getTime());
+			if(t1.getOrderNr() == t2.getOrderNr()) {
+				return (int) Math.signum(t1.getTime() - t2.getTime()); // sort in increasing order
+			}
+			return (int) Math.signum(t2.getOrderNr() - t1.getOrderNr()); // sort in decreasing order
 		}
 	}
 }

@@ -87,13 +87,17 @@ public class TwitchJim extends TwitchBot {
 		}
 
 		if(command.equalsIgnoreCase("raceinfo") || command.equalsIgnoreCase("racestats")) {
-			Race r = api.findRaceWithTwitchUser(channel.toString().substring(1));
-			if(r != null) {
-				String[] raceInfo = r.getRaceInfo();
+			Race race = api.findRaceWithTwitchUser(channel.toString().substring(1));
+			if(race != null) {
+				String[] raceInfo = race.getRaceInfo();
 				this.sendMessage(raceInfo[0], channel);
 				if(raceInfo[1] != null && !raceInfo[1].isEmpty()) {
 					this.sendMessage(raceInfo[1], channel);
 				}
+
+				WatchedRace wr = RaceAnnouncer.getInstance().getRaceByID(race.getId());
+				String leaderboard = wr.getAllRaceSplits();
+				this.sendMessage(leaderboard, channel);
 			}
 		}
 	}

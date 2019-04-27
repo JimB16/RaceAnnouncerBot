@@ -3,6 +3,8 @@ package de.sebmey.jimbot.announcer;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -28,7 +30,7 @@ import de.sebmey.jimbot.srl.api.RaceState;
 public class WatchedRace {
 	
 	private List<Entrant> runnersConnectedThroughLiveSplit = new ArrayList<Entrant>();
-	private List<String> announcedSplits = new ArrayList<String>();
+	//private List<String> announcedSplits = new ArrayList<String>();
 	private Game game;
 	private List<RaceSplit> splits;
 	private String raceId;
@@ -74,6 +76,7 @@ public class WatchedRace {
 	}
 	
 	public void recordSplitTime(String splitName, String user, String time) {
+		PKMNREDBLUE standardSplitData = PKMNREDBLUE.getSplitDataByNameOrAlias(splitName);
 		Entrant e = findEntrantByUsername(user);
 		if(e == null) {
 			e = getRunnerInRaceFromAPI(user);
@@ -81,15 +84,15 @@ public class WatchedRace {
 		}
 		if(e != null) {
 			if(this.getGame().getId() == 6) {
-				String standardSplitName = PKMNREDBLUE.getSplitNameByNameOrAlias(splitName);
-				if(standardSplitName != null) {
-					System.out.println("Found standardized name for " + splitName + ", using " + standardSplitName);
-					splitName = standardSplitName;
+				//String standardSplitName = PKMNREDBLUE.getSplitNameByNameOrAlias(splitName);
+				if(standardSplitData != null) {
+					System.out.println("Found standardized name for " + splitName + ", using " + standardSplitData.getName());
+					splitName = standardSplitData.getName();
 				}
 			}
 			RaceSplit rs = findRaceSplitByName(splitName);
 			if(rs == null) {
-				rs = new RaceSplit(splitName);
+				rs = new RaceSplit(splitName, standardSplitData.getOrderNr());
 				this.splits.add(rs);
 			}
 			rs.addTime(e, time);
@@ -99,6 +102,42 @@ public class WatchedRace {
 				this.announceSplitIfComplete(rs2);
 			}
 		}
+	}
+
+	public String getAllRaceSplits() {
+		List<SplitTime> allSplitTimes = new ArrayList<SplitTime>();
+		// collect all Split Times that were posted by the runners
+		for(RaceSplit rs : this.splits) {
+			for(SplitTime st : rs.getSplitTimes()) {
+				allSplitTimes.add(st);
+			}
+		}
+
+		Collections.sort(allSplitTimes, new RaceSplit.SplitTimeComparator()); // sort all SplitTimes
+
+		List<String> runnerNames = new ArrayList<>();
+
+		Iterator<SplitTime> iterator = allSplitTimes.iterator();
+		// iterate through all SplitTimes
+		while (iterator.hasNext()) {
+			if(!runnerNames.contains(iterator.next().getEntrantName())) { // found first (most progressed after sorting) SplitTime of the runner
+				runnerNames.add(iterator.next().getEntrantName());
+			} else { // else found a slower SplitTime that is removed
+				iterator.remove();
+			}
+		}
+
+		// Output the remaining SplitTimes (sorted and only one per Runner)
+		System.out.println("Announcing Leaderboard");
+
+		String message = "Leaderboard: ";
+		int position = 0;
+		for(SplitTime st : allSplitTimes) {
+			message += ++position + ". " + st.getEntrantName() + " : " + st.getSplitName() + " (" + st.getDisplayTime() + ") | ";
+		}
+		System.out.println(message);
+
+		return message;
 	}
 	
 	private Entrant getRunnerInRaceFromAPI(String user) {
@@ -112,7 +151,7 @@ public class WatchedRace {
 	}
 	
 	private void announceSplitIfComplete(RaceSplit rs) {
-		if(this.announcedSplits.contains(rs.getSplitName())) {
+		if(rs.hasBeenAnnounced()) {
 			System.out.println("Split " + rs.getSplitName() + " has already been announced, not announcing again.");
 			return;
 		}
@@ -149,7 +188,7 @@ public class WatchedRace {
 				this.twitchClient.sendMessage(message, Channel.getChannel(e.getTwitch().toLowerCase(), this.twitchClient));
 			}
 		}
-		this.announcedSplits.add(rs.getSplitName());
+		rs.setAnnounced();
 	}
 	
 	private Entrant findEntrantByUsername(String user) {
