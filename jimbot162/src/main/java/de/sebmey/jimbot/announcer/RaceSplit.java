@@ -13,7 +13,7 @@ public class RaceSplit {
 	public RaceSplit(String splitName) {
 		this.splitName = splitName;
 	}
-	
+
 	public void addTime(Entrant runner, String time) {
 		for(SplitTime sTime: splitTimes) {
 			if(runner.getDisplayName().equalsIgnoreCase(sTime.getEntrantName())) {
