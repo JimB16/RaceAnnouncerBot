@@ -120,13 +120,13 @@ public class WatchedRace {
         String message = "Standings: ";
         int position = 0;
         for(SplitTime st : allSplitTimes) {
-            message += ++position + ". " + st.getEntrantName() + " : " + st.getSplitName() + " (" + st.getDisplayTime() + ") ";
+            message += ++position + ". " + st.getEntrantName() + " : " + st.getSplitName() + " (";
             if(findEntrantByUsername(st.getEntrantName()).getState() ==  PlayerState.FORFEIT) {
                 message += "forfeited";
+            } else {
+                message += st.getDisplayTime();
             }
-            /*else if(findEntrantByUsername(st.getEntrantName()).getState() ==  PlayerState.FINISHED) {
-                    message += "finished";
-            }*/
+            message += ") ";
             message += " | ";
         }
         LOG.info("{}", message);
