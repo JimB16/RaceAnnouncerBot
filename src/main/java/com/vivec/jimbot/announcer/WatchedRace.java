@@ -36,6 +36,7 @@ public class WatchedRace {
     private static final Logger LOG = LogManager.getLogger(WatchedRace.class);
     private final List<Entrant> runnersConnectedThroughLiveSplit = new ArrayList<>();
     private final List<String> spectators = new ArrayList<>();
+    private final List<String> deltaPlus = new ArrayList<>();
     private final List<String> announcedSplits = new ArrayList<>();
     private final Game game;
     private final List<RaceSplit> splits = new ArrayList<>();
@@ -45,6 +46,7 @@ public class WatchedRace {
     private final SpeedrunsliveAPI api = new SpeedrunsliveAPI();
     private final String srlLiveSplitChannelName;
     private String standings;
+    List<SplitTime> allSplitTimes = new ArrayList<SplitTime>();
     private org.kitteh.irc.client.library.element.Channel srlLiveSplitChannel;
 
     private ScheduledThreadPoolExecutor exec = new ScheduledThreadPoolExecutor(1);
@@ -76,10 +78,18 @@ public class WatchedRace {
                         .orElse(new RaceSplit(splitName, standardSplitData.getOrderNr()));
                 raceSplit.addTime(e, time);
                 getSplits().add(raceSplit);
+
+
+                Boolean deltaPlus = this.deltaPlus.contains(e.getTwitch());
+                if(deltaPlus) {
+                    announceSplitDelta(raceSplit, e);
+                }
             }
         }
+
         // check all splits in case someone dropped as last runner
         getSplits().forEach(this::announceSplitIfComplete);
+
         getAllRaceSplits();
     }
 
@@ -90,20 +100,44 @@ public class WatchedRace {
         }
     }
 
-    public void getAllRaceSplits() {
-        List<SplitTime> allSplitTimes = new ArrayList<SplitTime>();
-        // collect all Split Times that were posted by the runners
-        for(RaceSplit rs : this.splits) {
-            for(SplitTime st : rs.getSplitTimes()) {
-                allSplitTimes.add(st);
+    private void announceSplitDelta(RaceSplit raceSplit, Entrant e) {
+        String deltaMsg = "Empty DeltaString";
+        SplitTime st_pre = null;
+        SplitTime st_now = null;
+        int position = 0;
+        for(SplitTime st : raceSplit.getSplitTimes()) {
+            position++;
+            st_pre = st_now;
+            st_now = st;
+            if(st.getEntrantName().equalsIgnoreCase(e.getDisplayName())) {
+                if(st_pre != null) { // someone is in front of the runner
+                    deltaMsg = st_pre.getSplitName() + ": " + position + ". " + st_pre.getEntrantName() + " " + st_pre.getDisplayTime() + " | ";
+                    long delta = st_now.getTime() - st_pre.getTime();
+                    deltaMsg += (position+1) + ". " +  st.getEntrantName() + " ";
+                    if(delta > 0) deltaMsg += "+";
+                    deltaMsg += getDisplayTime(delta);
+                } else { // no one is in front of the runner
+                    deltaMsg = st.getSplitName() + ": " + position + ". " + st.getEntrantName() + " " + st.getDisplayTime() + " | ";
+                }
             }
         }
+        LOG.info("Sending delta time to {}", e.getTwitch());
+        twitchClient.sendMessage(deltaMsg, Channel.getChannel(e.getTwitch().toLowerCase(), twitchClient));
+    }
 
-        Collections.sort(allSplitTimes, new RaceSplit.SplitTimeComparator()); // sort all SplitTimes
+    public void getAllRaceSplits() {
+        this.allSplitTimes.clear();
+
+        // collect all Split Times that were posted by the runners
+        for(RaceSplit rs : this.splits) {
+            this.allSplitTimes.addAll(rs.getSplitTimes());
+        }
+
+        Collections.sort(this.allSplitTimes, new RaceSplit.SplitTimeComparator()); // sort all SplitTimes
 
         List<String> runnerNames = new ArrayList<>();
 
-        Iterator<SplitTime> it = allSplitTimes.iterator();
+        Iterator<SplitTime> it = this.allSplitTimes.iterator();
         // iterate through all SplitTimes
         while (it.hasNext()) {
             SplitTime st = it.next();
@@ -119,7 +153,7 @@ public class WatchedRace {
 
         String message = "Standings: ";
         int position = 0;
-        for(SplitTime st : allSplitTimes) {
+        for(SplitTime st : this.allSplitTimes) {
             message += ++position + ". " + st.getEntrantName() + " : " + st.getSplitName() + " (";
             if(findEntrantByUsername(st.getEntrantName()).getState() ==  PlayerState.FORFEIT) {
                 message += "forfeited";
@@ -132,6 +166,52 @@ public class WatchedRace {
         LOG.info("{}", message);
 
         this.setStandings(message);
+    }
+
+    public String getDeltaMsg(String srlUserName) {
+        String deltaMsg = "Empty String";
+        deltaMsg = srlUserName;
+        for(SplitTime st : this.allSplitTimes) {
+            if(st.getEntrantName().equalsIgnoreCase(srlUserName)) {
+                String splitName = st.getSplitName();
+                deltaMsg = st.getEntrantName() + " " + st.getSplitName() + " " + st.getDisplayTime();
+                for(RaceSplit rs : this.splits) {
+                    if(rs.getSplitName().equalsIgnoreCase(splitName)) {
+                        SplitTime st_pre = null;
+                        SplitTime st_now = null;
+                        SplitTime st_next = null;
+                        for(SplitTime st2 : rs.getSplitTimes()) {
+                            st_pre = st_now;
+                            st_now = st2;
+                            if(st_pre != null) { // someone is in front of the runner
+                                deltaMsg = st_pre.getSplitName() + ": " + st_pre.getEntrantName() + " " + st_pre.getDisplayTime() + " | ";
+                                if (st2.getEntrantName().equalsIgnoreCase(srlUserName)) {
+                                    long delta = st_now.getTime() - st_pre.getTime();
+                                    deltaMsg += st2.getEntrantName() + " ";
+                                    if(delta > 0) deltaMsg += "+";
+                                    deltaMsg += getDisplayTime(delta);
+                                }
+                            } else { // no one is in front of the runner
+                                deltaMsg = st2.getSplitName() + " " + st2.getEntrantName() + " " + st2.getDisplayTime() + " | ";
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return deltaMsg;
+    }
+
+    private String getDisplayTime(long time) {
+        long second = (time / 1000) % 60;
+        long minute = (time / (1000 * 60)) % 60;
+        long hour = (time / (1000 * 60 * 60));
+        long millis = time % 1000;
+        if(hour > 0) {
+            return String.format("%d:%02d:%02d.%d", hour, minute, second, millis);
+        } else {
+            return String.format("%02d:%02d.%d", minute, second, millis);
+        }
     }
 
     private Entrant getRunnerInRaceFromAPI(String user) {
@@ -215,6 +295,17 @@ public class WatchedRace {
                 .orElse(null);
     }
 
+    public Entrant findEntrantByTwitchName(String user) {
+        return findEntrantByTwitchName(user, runnersConnectedThroughLiveSplit);
+    }
+
+    private Entrant findEntrantByTwitchName(String user, List<Entrant> entrants) {
+        return entrants.stream()
+                .filter(e -> e.getTwitch().equalsIgnoreCase(user))
+                .findFirst()
+                .orElse(null);
+    }
+
     private RaceSplit findRaceSplitByName(String splitName) {
         return getSplits().stream()
                 .filter(rs -> rs.getSplitName().equalsIgnoreCase(splitName))
@@ -285,10 +376,23 @@ public class WatchedRace {
         twitchClient.partChannel(spectatorname);
     }
 
+    public List<String> getDeltaPlus() {
+        return deltaPlus;
+    }
+
+    public int addDeltaPlus(String name) {
+        if(!deltaPlus.contains(name)) {
+            deltaPlus.add(name);
+            //twitchClient.joinChannel(name);
+            return 1;
+        }
+        return 0;
+    }
+
     private void joinTwitchChannelAndSendWelcome(Entrant e) {
         runnersConnectedThroughLiveSplit.add(e);
+        twitchClient.joinChannel(e.getTwitch().toLowerCase());
         if(!JimBot162v2.DEBUG) {
-            twitchClient.joinChannel(e.getTwitch().toLowerCase());
             twitchClient.sendMessage(CommonMessages.CHANNEL_ANNOUNCEMENT_JOIN, Channel.getChannel(e.getTwitch().toLowerCase(), twitchClient));
         }
     }

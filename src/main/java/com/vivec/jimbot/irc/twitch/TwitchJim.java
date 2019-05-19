@@ -6,6 +6,7 @@ import com.cavariux.twitchirc.Core.TwitchBot;
 import com.vivec.jimbot.announcer.RaceAnnouncer;
 import com.vivec.jimbot.announcer.WatchedRace;
 import com.vivec.jimbot.srl.SpeedrunsliveAPI;
+import com.vivec.jimbot.srl.api.Entrant;
 import com.vivec.jimbot.srl.api.Race;
 import org.apache.commons.lang3.StringUtils;
 
@@ -63,6 +64,37 @@ public class TwitchJim extends TwitchBot {
                 this.sendMessage(wr.getStandings(), channel);
             }
         }
+
+    //} else if (command.startsWith("delta")) { // e.g. !delta
+        //showDeltaTime(channel, command, raceAnnouncer);
+        if (command.equalsIgnoreCase("delta")) {
+            //String arguments = command.substring("delta ".length());
+            String splitRunner = channel.toString().substring(1);
+            //String splitRunner = arguments.trim();
+
+            //Race r = api.findRaceWithTwitchUser(channel.toString().substring(1));
+
+            //String splitRunner = channel.toString().substring(1);
+            Race race = api.findRaceWithTwitchUser(channel.toString().substring(1));
+            //Race race = api.findRaceWithSRLUser(splitRunner);
+            if (race == null) {
+                this.sendMessage(splitRunner + " is not part of a race on speedrunslive.com right now.", channel);
+            } else {
+                String username = null;
+                WatchedRace wr = RaceAnnouncer.getInstance().getRaceByID(race.getId());
+                if (wr != null) {
+                    //wr.recordSplitTime(splitName, splitRunner, splitTime);
+                    Entrant e = wr.findEntrantByTwitchName(splitRunner);
+                    wr.addDeltaPlus(e.getTwitch());
+                    this.sendMessage("DeltaPlus messages activated for " + channel.toString().substring(1), channel);
+                    //String msg = wr.getDeltaMsg(splitRunner);
+                    //this.sendMessage(msg, channel);
+                    //this.sendMessage("Recorded the SplitTime of " + splitRunner + " at " + splitName + " with a time of " + splitTime + ".", channel);
+                } else {
+                    this.sendMessage("The race in which " + splitRunner + " is part of couldn't be found on speedrunslive.com.", channel);
+                }
+            }
+        }
     }
 
     private void sendRaceInformation(Channel channel) {
@@ -93,6 +125,41 @@ public class TwitchJim extends TwitchBot {
             if (wr != null) {
                 wr.recordSplitTime(splitName, splitRunner, splitTime);
                 this.sendMessage("Recorded the SplitTime of " + splitRunner + " at " + splitName + " with a time of " + splitTime + ".", channel);
+            } else {
+                this.sendMessage("The race in which " + splitRunner + " is part of couldn't be found on speedrunslive.com.", channel);
+            }
+        }
+    }
+
+    private void showDeltaTime(Channel channel, String command, RaceAnnouncer raceAnnouncer) {
+        //String arguments = command.substring("delta ".length());
+        String splitRunner = channel.toString().substring(1);
+        //String splitRunner = arguments.trim();
+
+        //Race r = api.findRaceWithTwitchUser(channel.toString().substring(1));
+
+        //String splitRunner = channel.toString().substring(1);
+        Race race = api.findRaceWithTwitchUser(channel.toString().substring(1));
+        //Race race = api.findRaceWithSRLUser(splitRunner);
+        if (race == null) {
+            this.sendMessage(splitRunner + " is not part of a race on speedrunslive.com right now.", channel);
+        } else {
+            String username = null;
+            WatchedRace wr = raceAnnouncer.getRaceByID(race.getId());
+            /*for(Entrant e : race.getEntrants()) {
+                if(splitRunner.toLowerCase() == e.getTwitch().toLowerCase()) {
+                    //username = e.getUserName();
+                    username = "found user";
+                }
+            }*/
+            if (wr != null) {
+                //wr.recordSplitTime(splitName, splitRunner, splitTime);
+                Entrant e = wr.findEntrantByTwitchName(splitRunner);
+                wr.addDeltaPlus(e.getTwitch());
+                this.sendMessage("DeltaPlus messages activated for " + channel.toString().substring(1), channel);
+                //String msg = wr.getDeltaMsg(splitRunner);
+                //this.sendMessage(msg, channel);
+                //this.sendMessage("Recorded the SplitTime of " + splitRunner + " at " + splitName + " with a time of " + splitTime + ".", channel);
             } else {
                 this.sendMessage("The race in which " + splitRunner + " is part of couldn't be found on speedrunslive.com.", channel);
             }
