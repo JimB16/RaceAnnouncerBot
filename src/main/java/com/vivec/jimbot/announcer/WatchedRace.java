@@ -104,16 +104,16 @@ public class WatchedRace {
         String deltaMsg = "Empty DeltaString";
         SplitTime st_pre = null;
         SplitTime st_now = null;
-        int position = 0;
+        int position = 1;
         for(SplitTime st : raceSplit.getSplitTimes()) {
             position++;
             st_pre = st_now;
             st_now = st;
             if(st.getEntrantName().equalsIgnoreCase(e.getDisplayName())) {
                 if(st_pre != null) { // someone is in front of the runner
-                    deltaMsg = st_pre.getSplitName() + ": " + position + ". " + st_pre.getEntrantName() + " " + st_pre.getDisplayTime() + " | ";
+                    deltaMsg = st_pre.getSplitName() + ": " + (position-1) + ". " + st_pre.getEntrantName() + " " + st_pre.getDisplayTime() + " | ";
                     long delta = st_now.getTime() - st_pre.getTime();
-                    deltaMsg += (position+1) + ". " +  st.getEntrantName() + " ";
+                    deltaMsg += (position+0) + ". " +  st.getEntrantName() + " ";
                     if(delta > 0) deltaMsg += "+";
                     deltaMsg += getDisplayTime(delta);
                 } else { // no one is in front of the runner
